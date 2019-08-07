@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<title>Todo List</title>
+		<link rel="stylesheet" href="assets/css/base.css">
+		<link rel="stylesheet" href="assets/css/index.css">
+	</head>
+	<body>
+		<section class="todoapp">
+			<header class="header">
+				<h1>todos</h1>
+				<input class="new-todo" placeholder="What needs to be done?" autofocus id="task">
+			</header>
+			<!-- This section should be hidden by default and shown when there are todos -->
+			<section class="main">
+				<input class="toggle-all" type="checkbox">
+				<label for="toggle-all">Mark all as complete</label>
+				<ul class="todo-list">
+					<!-- These are here just to show the structure of the list items -->
+					<!-- List items should get the class `editing` when editing and `completed` when marked as completed -->
+					
+				</ul>
+			</section>
+			<!-- This footer should hidden by default and shown when there are todos -->
+			<footer class="footer">
+				<!-- This should be `0 items left` by default -->
+				<span class="todo-count"><strong>0</strong> item left</span>
+				<!-- Remove this if you don't implement routing -->
+				<ul class="filters">
+					<li class='all'>
+						<a class="selected" href="#/">All</a>
+					</li>
+					<li class='active'>
+						<a href="#">Active</a>
+					</li>
+					<li class='Completed'>
+						<a href="#/completed">Completed</a>
+					</li>
+				</ul>
+				<!-- Hidden if no completed items are left ↓ -->
+				<button class="clear-completed">Clear completed</button>
+			</footer>
+		</section>
+		<script type="text/html" id='tmp1'>
+			{{each list}}
+			<!-- <li class="completed">
+					<div class="view">
+						<input class="toggle" type="checkbox" checked>
+						<label>{{$value.title}}</label>
+						<button class="destroy"></button>
+					</div>
+					<input class="edit" value="Create a TodoMVC template">
+				</li> -->
+				
+				<li class='{{$value.completed?"completed":""}}'>
+					<div class="view">
+						<input class="toggle" type="checkbox" {{$value.completed?'checked':""}}>
+						<label>{{$value.title}}</label>
+						<button class="destroy" data_id='{{$value._id}}'></button>
+					</div>
+					<input class="edit" value="Rule the web">
+				</li>
+			
+			{{/each}}
+		</script>
+		<script src="../js/jquery.min.js"></script>
+		<script src="../js/template-web.js"></script>
+	<script>
+		var taskArray=[];
+		var task=$('#task');
+		var active=$('.filters .active');
+		var Completed=$('.filters .Completed');
+		var all=$('.filters .all');
+		var count111=$('.todo-count strong');
+		$.ajax({
+			type:'get',
+			url:'/todo/task',
+			success:function(res){
+				console.log(res);
+				taskArray=res;
+				render();
+			}
+		})
+		//敲击enter发送请求
+		task.on('keyup',function(e){
+			var inputValue=$(this).val().replace(/\s/g,'');//
+			console.log(inputValue);		
+			if(e.keyCode==13){
+				//判断空值
+				if($(this).val().trim().length==0){
+					alert('请输入需要完成的任务')
+				}
+				//判断任务是否存在
+				var flag=taskArray.find(item=>inputValue==item.title);
+				if(flag){
+					alert('已存在相同的任务');
+				}
+				
+				$.ajax({
+				type:'post',
+				url:'/todo/addTask',
+				contentType:'application/json',
+				data:JSON.stringify({
+					title:inputValue
+				}),
+				success:function(res){
+					console.log(res);
+					taskArray.push(res);
+					render();
+					calcCount();
+					//enter后task文本框的值制空
+					task.val('');
+				}
+			})
+			}
+		
+		})
+
+		$('.todo-list').on('click','.destroy',function(){
+			var id=$(this).attr('data_id');
+			console.log(id);
+			$.get({	
+				type:'get',
+				url:'/todo/deleteTask',
+				data:{
+					_id:id,
+				},
+				success:function(res){
+					console.log(res);
+				let index=	taskArray.findIndex(item=>item._id==res._id);
+				taskArray.splice(index,1);
+				render();
+				calcCount();	
+			
+				}
+			})
+			
+		})
+
+		$('.todo-list').on('change','.toggle',function(){
+			var status=$(this).prop('checked');
+			var id=$(this).siblings('button').attr('data_id');
+			console.log(status,id);
+			// //调用访问服务器
+			$.ajax({
+				type:'post',
+				url:'/todo/modifyTask',
+				contentType:'application/json',
+				data:JSON.stringify({
+					_id:id,
+					completed:status,		
+				}),
+				success:function(res){
+					// console.log(res);
+					// let status=taskArray.find(item=>item._id==res._id);
+					// console.log(status);			
+				let status1=taskArray.find(item=>item._id==id);
+				console.log(status1.completed,res.completed);
+				status1.completed=res.completed;
+				console.log(status1);
+					render();
+					calcCount();				
+				}
+			})	
+		
+			
+		
+		})
+
+	//修改任务名称
+	$('.todo-list').on('dblclick','label',function(){
+		//处于编辑状态
+		$(this).parents('li').addClass('editing');
+		//把文本框的值赋值到
+		$(this).parents('div').siblings('input').val($(this).text());
+		//文本框自动获取焦点
+		$(this).parents('div').siblings('input').focus();
+		calcCount();
+		
+	})
+
+	//失去焦点时候注册事件
+	$('.todo-list').on('blur','.edit',function(){
+		var id=$(this).siblings('.view').children('button').attr('data_id');
+		var taskName=$(this).val();
+		console.log(id,taskName);
+		
+		$.ajax({
+			url:'/todo/modifyTask',
+			type:'post',
+			data:JSON.stringify({
+				_id:id,
+				title:taskName,
+			
+			}),
+			contentType:'application/json',
+			success:function(res){
+				console.log(res);
+				
+				
+				let status2=taskArray.find(item=>item._id==id);
+
+				status2.title=res.title;
+				render();	
+			}
+
+		})
+	})
+
+
+
+		//
+		function calcCount () {
+			
+				// 存储结果的变量
+				var count = 0;
+				// 将未完成的任务过滤到一个新的数组中
+				var newAry = taskArray.filter(item => item.completed == false);
+				console.log(newAry);
+				
+				//将新数组的长度赋值给count
+				count = newAry.length;
+				// 将未完成的任务数量显示在页面中
+				// .html(count)
+				
+				count111.html(count)
+			}
+			
+			active.on('click',function(){
+				console.log(111);
+				$(this).addClass('selected').siblings().removeClass('selected');
+				render();
+				
+			})
+	// function getCount (){
+	// 	console.log(taskArray);
+		
+	// var taska=taskArray.filter(items=>items.completed=false);
+	// 	console.log(taska);
+	// 	console.log(11);
+		
+		
+	// }
+
+	// getCount();
+		//渲染页面
+
+		function render(){
+			let html=template('tmp1',{
+					list:taskArray,
+				});
+				$('.todo-list').html(html);
+	
+		}
+	
+	</script>
+	</body>
+</html>
